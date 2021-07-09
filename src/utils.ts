@@ -1,4 +1,4 @@
-import { OpenAPI2, OpenAPI3, ReferenceObject } from "./types";
+import { OpenAPI2, OpenAPI3, ReferenceObject, RequestResponse } from "./types";
 
 export function comment(text: string): string {
   const commentText = text.trim().replace(/\*\//g, "*\\/");
@@ -95,6 +95,15 @@ export function swaggerVersion(definition: OpenAPI2 | OpenAPI3): 2 | 3 {
   throw new Error(
     `🚏 version missing from schema; specify whether this is OpenAPI v3 or v2 https://swagger.io/specification`
   );
+}
+
+/** Convert transformed $ref to TS ref if it's an internal one */
+export function transformRequestResponseRef(ref: string, requestResponse?: RequestResponse): string {
+  if (requestResponse && ref.startsWith('components["schemas"]')) {
+    return ref.replace("schemas", `x-${requestResponse}Schemas`);
+  }
+
+  return ref;
 }
 
 /** Decode $ref (https://swagger.io/docs/specification/using-ref/#escape) */

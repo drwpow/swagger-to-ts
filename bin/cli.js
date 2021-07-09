@@ -20,6 +20,7 @@ Options
   --default-non-nullable       (optional) If a schema object has a default value set, don’t mark it as nullable
   --prettier-config, -c        (optional) specify path to Prettier config file
   --raw-schema                 (optional) Parse as partial schema (raw components)
+  --split-schema, -s           (optional) Split the schema into requestSchema and responseSchema to support readOnly/writeOnly
   --version                    (optional) Force schema parsing version
 `,
   {
@@ -48,6 +49,10 @@ Options
       },
       rawSchema: {
         type: "boolean",
+      },
+      splitSchema: {
+        type: "boolean",
+        alias: "s",
       },
       version: {
         type: "number",
@@ -78,6 +83,7 @@ async function generateSchema(pathToSpec) {
     prettierConfig: cli.flags.prettierConfig,
     rawSchema: cli.flags.rawSchema,
     silent: output === OUTPUT_STDOUT,
+    splitSchema: cli.flags.splitSchema,
     version: cli.flags.version,
   });
 

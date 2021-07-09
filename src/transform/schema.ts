@@ -1,5 +1,15 @@
 import { GlobalContext } from "../types";
-import { comment, nodeType, tsArrayOf, tsIntersectionOf, tsPartial, tsReadonly, tsTupleOf, tsUnionOf } from "../utils";
+import {
+  comment,
+  nodeType,
+  transformRequestResponseRef,
+  tsArrayOf,
+  tsIntersectionOf,
+  tsPartial,
+  tsReadonly,
+  tsTupleOf,
+  tsUnionOf,
+} from "../utils";
 
 interface TransformSchemaObjOptions extends GlobalContext {
   required: Set<string>;
@@ -13,25 +23,46 @@ function hasDefaultValue(node: any): boolean {
 
 /** Take object keys and convert to TypeScript interface */
 export function transformSchemaObjMap(obj: Record<string, any>, options: TransformSchemaObjOptions): string {
+  const readonly = tsReadonly(options.immutableTypes);
+
   let output = "";
 
   for (const k of Object.keys(obj)) {
     const v = obj[k];
 
-    // 1. JSDoc comment (goes above property)
-    if (v.description) output += comment(v.description);
+    if (
+      options.requestResponse == null ||
+      (options.requestResponse === "request" && !v.writeOnly) ||
+      (options.requestResponse === "response" && !v.readOnly)
+    ) {
+      // 1. JSDoc comment (goes above property)
+      if (v.description) output += comment(v.description);
 
-    // 2. name (with “?” if optional property)
-    const readonly = tsReadonly(options.immutableTypes);
-    const required =
-      options.required.has(k) || (options.defaultNonNullable && hasDefaultValue(v.schema || v)) ? "" : "?";
-    output += `${readonly}"${k}"${required}: `;
+      // 2. name (with “?” if optional property)
+      const required =
+        options.required.has(k) || (options.defaultNonNullable && hasDefaultValue(v.schema || v)) ? "" : "?";
+      output += `${readonly}"${k}"${required}: `;
 
-    // 3. transform
-    output += transformSchemaObj(v.schema || v, options);
+      // 3. transform
+      output += transformSchemaObj(v.schema || v, options);
 
-    // 4. close
-    output += `;\n`;
+      // 4. close
+      output += `;${v.readOnly ? " // GET requests only" : v.writeOnly ? " // POST/PUT/PATCH responses only" : ""}\n`;
+    }
+  }
+
+  return output.replace(/\n+$/, "\n"); // replace repeat line endings with only one
+}
+
+/** Used to merge definitions in components["schemas"] when using readOnly/writeOnly */
+export function transformSchemaRefMap(obj: Record<string, any>, options: GlobalContext): string {
+  const readonly = tsReadonly(options.immutableTypes);
+
+  let output = "";
+
+  for (const k of Object.keys(obj)) {
+    // name (with “?” if optional property)
+    output += `${readonly}"${k}": components["x-requestSchemas"]["${k}"] | components["x-responseSchemas"]["${k}"];\n`;
   }
 
   return output.replace(/\n+$/, "\n"); // replace repeat line endings with only one
@@ -91,7 +122,8 @@ export function transformSchemaObj(node: any, options: TransformSchemaObjOptions
     // transform core type
     switch (nodeType(node)) {
       case "ref": {
-        output += node.$ref; // these were transformed at load time when remote schemas were resolved; return as-is
+        // these were transformed at load time when remote schemas were resolved; only transform if read/write only
+        output += transformRequestResponseRef(node.$ref, options.requestResponse);
         break;
       }
       case "string":

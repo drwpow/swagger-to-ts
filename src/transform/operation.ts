@@ -1,5 +1,5 @@
 import { GlobalContext, OperationObject, ParameterObject, PathItemObject } from "../types";
-import { comment, isRef, tsReadonly } from "../utils";
+import { comment, isRef, transformRequestResponseRef, tsReadonly } from "../utils";
 import { transformParametersArray } from "./parameters";
 import { transformRequestBodyObj } from "./request";
 import { transformResponsesObj } from "./responses";
@@ -24,15 +24,26 @@ export function transformOperationObj(operation: OperationObject, options: Trans
   }
 
   if (operation.responses) {
-    output += `  ${readonly}responses: {\n    ${transformResponsesObj(operation.responses, ctx)}\n  }\n`;
+    output += `  ${readonly}responses: {\n    ${transformResponsesObj(operation.responses, {
+      ...ctx,
+      requestResponse: options.splitSchema ? "response" : undefined,
+    })}\n  }\n`;
   }
 
   if (operation.requestBody) {
+    const requestResponse = options.splitSchema ? "request" : undefined;
+
     if (isRef(operation.requestBody)) {
-      output += `  ${readonly}requestBody: ${operation.requestBody.$ref};\n`;
+      output += `  ${readonly}requestBody: ${transformRequestResponseRef(
+        operation.requestBody.$ref,
+        requestResponse
+      )};\n`;
     } else {
       if (operation.requestBody.description) output += comment(operation.requestBody.description);
-      output += `  ${readonly}requestBody: {\n  ${transformRequestBodyObj(operation.requestBody, ctx)}  }\n`;
+      output += `  ${readonly}requestBody: {\n  ${transformRequestBodyObj(operation.requestBody, {
+        ...ctx,
+        requestResponse,
+      })}  }\n`;
     }
   }
 
